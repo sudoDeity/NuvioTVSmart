@@ -9196,12 +9196,31 @@ export const PlayerScreen = {
         this.scheduleBufferingSpinnerRefresh();
         return;
       }
-      this.bufferingActive = false;
+
+      const minimalBufferingUiEnabled =
+        Environment.isWebOS() &&
+        PlayerSettingsStore.get().minimalBufferingUiEnabled === true &&
+        this.hasPresentedPlaybackFrame &&
+        currentSeconds > 0 &&
+        !this.seekLoading &&
+        !this.sourcesPanelVisible &&
+        !this.isSeekOverlaySuppressingControls();
+
       this.dismissPauseOverlay();
       this.loadingVisible = true;
-      this.updateLoadingVisibility();
-      if (!this.sourcesPanelVisible && !this.isSeekOverlaySuppressingControls()) {
-        this.setControlsVisible(true, { focus: false });
+      if (minimalBufferingUiEnabled) {
+        this.bufferingActive = true;
+        this.bufferingSpinnerBaselineSeconds = currentSeconds;
+        this.lastPlaybackProgressAt = Date.now();
+        this.setControlsVisible(false, { focus: false });
+        this.updateLoadingVisibility();
+        this.scheduleBufferingSpinnerRefresh();
+      } else {
+        this.bufferingActive = false;
+        this.updateLoadingVisibility();
+        if (!this.sourcesPanelVisible && !this.isSeekOverlaySuppressingControls()) {
+          this.setControlsVisible(true, { focus: false });
+        }
       }
       this.schedulePlaybackStallGuard();
     };
