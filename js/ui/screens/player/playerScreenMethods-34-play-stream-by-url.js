@@ -30,6 +30,7 @@ export function createPlayerScreenMethods34() {
       if (!this.isActiveMountToken(mountToken)) {
         return;
       }
+      this.cancelAutomaticSubtitleSync?.(true);
       const webOsAddonSubtitleRestoreRequestId = Number(this.webOsAddonSubtitleRestoreRequestId || 0) + 1;
       this.webOsAddonSubtitleRestoreRequestId = webOsAddonSubtitleRestoreRequestId;
       this.pendingWebOsAddonSubtitleRestore = null;

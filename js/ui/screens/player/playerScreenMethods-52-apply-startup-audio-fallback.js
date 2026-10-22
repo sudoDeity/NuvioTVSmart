@@ -460,7 +460,7 @@ export function createPlayerScreenMethods52() {
       return [
         {
           id: "delay",
-          label: t("subtitle_tab_delay", {}, "Delay"),
+          label: t("subtitle_sync_title", {}, "Synchronization"),
           value: formatSubtitleDelay(this.subtitleDelayMs)
         },
         {

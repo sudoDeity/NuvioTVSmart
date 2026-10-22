@@ -2,6 +2,15 @@ import { ThemeStore } from "../data/local/themeStore.js";
 import { decodeAndroidStringEscapes } from "./androidStringEscapes.js";
 
 const DEFAULT_LOCALE = "en";
+// AutoSync and line alignment are English-only until translated consistently.
+function isEnglishOnlySubtitleSyncKey(key) {
+  return key.startsWith("subtitle_sync_") ||
+    key.startsWith("subtitle_automatic_sync_") ||
+    key.startsWith("subtitle_auto_sync_") ||
+    key.startsWith("subtitle_timing_") ||
+    ["player_sync_line", "player_subtitle_delay", "subtitle_tab_delay", "subtitle_delay_reset",
+      "subtitle_style_preserves_ass", "subtitle_style_unavailable_native"].includes(key);
+}
 const RTL_LOCALES = new Set(["ar", "he"]);
 const SUPPORTED_LOCALES = [
   "en",
@@ -671,6 +680,13 @@ export const I18n = {
     currentLocale = locale;
     initPromise = (async () => {
       activeMessages = await loadLocaleMessages(locale);
+      if (locale !== DEFAULT_LOCALE) {
+        const english = await loadLocaleMessages(DEFAULT_LOCALE);
+        activeMessages = { ...activeMessages };
+        for (const key of Object.keys(english)) {
+          if (isEnglishOnlySubtitleSyncKey(key)) activeMessages[key] = english[key];
+        }
+      }
       initialized = true;
       return currentLocale;
     })();

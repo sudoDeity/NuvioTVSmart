@@ -32,6 +32,8 @@ var MAX_TEXT_SUBTITLE_WINDOW_BYTES = 512 * 1024;
 var MAX_TEXT_ASS_BODY_BYTES = 512 * 1024;
 var MAX_TEXT_CODEC_PRIVATE_BYTES = 256 * 1024;
 var DEFAULT_TEXT_CUE_DURATION_MS = 5000;
+var subtitleSyncRequests = new Map();
+var cancelledSubtitleSyncRequests = new Map();
 var MAX_TEXT_CUE_DURATION_MS = 30000;
 var MAX_CONCURRENT_CLUSTER_REQUESTS = 3;
 var MAX_CONCURRENT_CUED_BLOCK_REQUESTS = 6;
@@ -209,6 +211,12 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
       reject(bitmapSubtitleError("REQUEST_SUPERSEDED", "Bitmap subtitle request was superseded"));
       return;
     }
+    if (requestContext && requestContext.syncBudget) {
+      if (++requestContext.requestCount > 16 || Date.now() >= requestContext.deadline) {
+        reject(bitmapSubtitleError("SYNC_BUDGET", "Subtitle sync request budget exceeded"));
+        return;
+      }
+    }
     var parsed;
     try {
       parsed = new URL(url);
@@ -217,6 +225,14 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
       return;
     }
 
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      reject(bitmapSubtitleError("INVALID_URL", "Subtitle source must use HTTP or HTTPS"));
+      return;
+    }
+    var extraHeaders =
+      requestContext && requestContext.syncBudget && parsed.origin === requestContext.origin
+        ? requestContext.headers
+        : {};
     var transport = parsed.protocol === "https:" ? https : http;
     var req = transport.request(
       parsed,
@@ -232,16 +248,16 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
                 net.getDefaultAutoSelectFamilyAttemptTimeout()
               )
             : undefined,
-        headers: {
+        headers: Object.assign({ "User-Agent": "NuvioTV/bitmap-subtitles" }, extraHeaders, {
           Range: "bytes=" + start + "-" + end,
-          "Accept-Encoding": "identity",
-          "User-Agent": "NuvioTV/bitmap-subtitles"
-        }
+          "Accept-Encoding": "identity"
+        })
       },
       function (res) {
         var statusCode = Number(res.statusCode || 0);
         if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
-          res.resume();
+          if (requestContext && requestContext.syncBudget) res.destroy();
+          else res.resume();
           if (requestContext) requestContext.requests.delete(req);
           if (redirectCount >= MAX_REDIRECTS) {
             reject(
@@ -252,7 +268,13 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
             );
             return;
           }
-          var redirected = new URL(res.headers.location, parsed).href;
+          var redirected;
+          try {
+            redirected = new URL(res.headers.location, parsed).href;
+          } catch (_) {
+            reject(bitmapSubtitleError("INVALID_URL", "Invalid subtitle redirect"));
+            return;
+          }
           requestRange(redirected, start, end, maxBytes, redirectCount + 1, requestContext).then(
             resolve,
             reject
@@ -261,7 +283,8 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
         }
 
         if (statusCode !== 206 && !(statusCode === 200 && start === 0)) {
-          res.resume();
+          if (requestContext && requestContext.syncBudget) res.destroy();
+          else res.resume();
           if (requestContext) requestContext.requests.delete(req);
           reject(
             bitmapSubtitleError(
@@ -273,11 +296,40 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
           return;
         }
 
+        if (requestContext && requestContext.syncBudget) {
+          var range = String(res.headers["content-range"] || "").match(
+            /^bytes (\d+)-(\d+)\/(\d+)$/i
+          );
+          if (
+            statusCode !== 206 ||
+            !range ||
+            Number(range[1]) !== start ||
+            Number(range[2]) !== Math.min(end, Number(range[3]) - 1) ||
+            !Number.isSafeInteger(Number(range[3])) ||
+            Number(range[3]) <= start ||
+            (res.headers["content-encoding"] && res.headers["content-encoding"] !== "identity")
+          ) {
+            res.destroy();
+            requestContext.requests.delete(req);
+            reject(
+              bitmapSubtitleError("RANGE_UNAVAILABLE", "Subtitle sync needs a valid byte range")
+            );
+            return;
+          }
+        }
         var chunks = [];
         var received = 0;
+        res.on("error", reject);
+        res.on("aborted", function () {
+          reject(bitmapSubtitleError("RANGE_ABORTED", "Subtitle range interrupted"));
+        });
         res.on("data", function (chunk) {
           received += chunk.length;
-          if (received > maxBytes) {
+          if (requestContext && requestContext.syncBudget) requestContext.bytes += chunk.length;
+          if (
+            received > maxBytes ||
+            (requestContext && requestContext.syncBudget && requestContext.bytes > 8 * 1024 * 1024)
+          ) {
             req.destroy(
               bitmapSubtitleError(
                 "RANGE_TOO_LARGE",
@@ -298,6 +350,14 @@ function requestRange(url, start, end, maxBytes, redirects, requestContext) {
             totalSize = Number(res.headers["content-length"] || 0) || null;
           }
           if (requestContext) requestContext.requests.delete(req);
+          if (
+            requestContext &&
+            requestContext.syncBudget &&
+            received !== Number(range[2]) - start + 1
+          ) {
+            reject(bitmapSubtitleError("RANGE_TRUNCATED", "Subtitle range was truncated"));
+            return;
+          }
           resolve({
             buffer: Buffer.concat(chunks),
             totalSize: totalSize,
@@ -456,7 +516,8 @@ function parseTracks(data, tracksElement) {
         codecPrivate: codecPrivate
           ? Buffer.from(data.slice(codecPrivate.dataStart, codecPrivate.dataEnd))
           : Buffer.alloc(0),
-        compression: parseCompression(data, entry)
+        compression: parseCompression(data, entry),
+        forced: readUnsigned(data, findChild(data, entry, 0x55aa)) === 1
       };
     });
 }
@@ -2213,7 +2274,217 @@ function clearBitmapSubtitleCaches() {
   });
 }
 
+function subtitleSyncChildren(data, parent) {
+  var children = [];
+  for (var offset = parent.dataStart; offset < parent.dataEnd;) {
+    var child = readElement(data, offset, parent.dataEnd, false);
+    if (!child || child.declaredDataEnd <= offset || children.length >= 64) {
+      throw bitmapSubtitleError("SYNC_BUDGET", "Sync point too complex");
+    }
+    children.push(child);
+    offset = child.declaredDataEnd;
+  }
+  return children;
+}
+
+// Stream Cues points instead of allocating an object for every element of an untrusted index.
+function parseSubtitleSyncCues(data, scale, referenceTrackNumbers) {
+  var root = readElement(data, 0, data.length, false);
+  if (!root || root.id !== ID_CUES) throw bitmapSubtitleError("INVALID_CUES", "Invalid sync index");
+  var cues = [];
+  var count = 0;
+  for (var offset = root.dataStart; offset < root.dataEnd;) {
+    var point = readElement(data, offset, root.dataEnd, false);
+    if (!point || point.declaredDataEnd <= offset || ++count > 30000)
+      throw bitmapSubtitleError("SYNC_BUDGET", "Sync index too complex");
+    offset = point.declaredDataEnd;
+    if (point.id !== ID_CUE_POINT) continue;
+    var fields = subtitleSyncChildren(data, point);
+    var timeField = fields.find(function (field) {
+      return field.id === ID_CUE_TIME;
+    });
+    var ticks = readUnsigned(data, timeField);
+    if (!Number.isSafeInteger(ticks)) continue;
+    fields.forEach(function (position) {
+      if (position.id !== ID_CUE_TRACK_POSITIONS) return;
+      var values = subtitleSyncChildren(data, position);
+      var track = readUnsigned(
+        data,
+        values.find(function (field) {
+          return field.id === ID_CUE_TRACK;
+        })
+      );
+      // Cues indexes also contain video, audio and bitmap subtitle positions.
+      // Only reference text tracks consume the sync timing allocation budget.
+      if (referenceTrackNumbers && !referenceTrackNumbers.has(track)) return;
+      var duration = readUnsigned(
+        data,
+        values.find(function (field) {
+          return field.id === ID_CUE_DURATION;
+        })
+      );
+      cues.push({ track: track, timeMs: (ticks * scale) / 1000000, durationTicks: duration });
+    });
+    if (cues.length > 18000) throw bitmapSubtitleError("SYNC_BUDGET", "Too many sync cues");
+  }
+  return cues;
+}
+
+function isSubtitleSyncReferenceTrack(track) {
+  return (
+    track.type === 17 &&
+    !track.forced &&
+    isTextSubtitleTrack(track) &&
+    !/forced|commentary|signs|songs/i.test(track.name || "")
+  );
+}
+
+// AutoSync only consumes indexed text timing. No cluster scanning or invented durations.
+function buildSubtitleSyncTracks(metadata, cues) {
+  return metadata.tracks
+    .filter(isSubtitleSyncReferenceTrack)
+    .map(function (track) {
+      var indexed = cues.filter(function (cue) {
+        return cue.track === track.number;
+      });
+      var timing = indexed
+        .map(function (cue) {
+          var duration = (cue.durationTicks * metadata.timecodeScaleNs) / 1000000000;
+          var start = cue.timeMs / 1000;
+          return { start: start, end: start + duration };
+        })
+        .filter(function (cue) {
+          return (
+            Number.isFinite(cue.start) &&
+            Number.isFinite(cue.end) &&
+            cue.start >= 0 &&
+            cue.end > cue.start &&
+            cue.end - cue.start <= 30 &&
+            cue.end <= 21600
+          );
+        });
+      // Missing durations and sparse/partial indexes are deliberately not guessed.
+      if (timing.length < 30 || timing.length > 6000 || timing.length < indexed.length * 0.95)
+        return null;
+      return { trackNumber: track.number, language: track.language, cues: timing };
+    })
+    .filter(Boolean)
+    .sort(function (a, b) {
+      return b.cues.length - a.cues.length;
+    })
+    .slice(0, 3);
+}
+
+function cancelSubtitleSyncTimeline(requestId) {
+  requestId = String(requestId || "");
+  if (!/^[a-zA-Z0-9-]{1,80}$/.test(requestId)) return;
+  var context = subtitleSyncRequests.get(requestId);
+  if (context) cancelRequestContext(context);
+  // A cancellation may reach the service before its asynchronous start request.
+  cancelledSubtitleSyncRequests.set(requestId, Date.now() + 20000);
+  trimCache(cancelledSubtitleSyncRequests, 16);
+}
+
+async function getSubtitleSyncTimeline(options) {
+  var mediaUrl = normalizeMediaUrl(options && options.url);
+  var requestId = String((options && options.requestId) || "");
+  if (!/^[a-zA-Z0-9-]{1,80}$/.test(requestId))
+    throw bitmapSubtitleError("INVALID_REQUEST", "Invalid sync request");
+  if (cancelledSubtitleSyncRequests.get(requestId) > Date.now())
+    throw bitmapSubtitleError("SYNC_CANCELLED", "Subtitle sync stopped");
+  var previous = subtitleSyncRequests.get(requestId);
+  if (previous) cancelRequestContext(previous);
+  if (subtitleSyncRequests.size >= 2)
+    throw bitmapSubtitleError("SYNC_BUSY", "Subtitle sync is busy");
+  var headers = {};
+  Object.keys(options.headers || {})
+    .slice(0, 20)
+    .forEach(function (key) {
+      // Transport headers are owned by the reader. Credentials stay on the source origin.
+      if (/^(authorization|cookie|referer|origin|user-agent|accept|x-[a-z0-9-]+)$/i.test(key)) {
+        var value = String(options.headers[key]);
+        if (value.length <= 4096 && !/[\r\n]/.test(value)) headers[key] = value;
+      }
+    });
+  var context = {
+    cancelled: false,
+    requests: new Set(),
+    syncBudget: true,
+    requestCount: 0,
+    bytes: 0,
+    deadline: Date.now() + 7000,
+    origin: new URL(mediaUrl).origin,
+    headers: headers
+  };
+  subtitleSyncRequests.set(requestId, context);
+  var timer = setTimeout(function () {
+    cancelRequestContext(context);
+  }, 7000);
+  try {
+    var head = await requestRange(mediaUrl, 0, 512 * 1024 - 1, 512 * 1024, 0, context);
+    var metadata = parseHeader(head.buffer, head.totalSize);
+    var offset = metadata.cuesOffset;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset >= head.totalSize)
+      throw bitmapSubtitleError("INVALID_CUES", "Invalid Cues position");
+    var probe = await requestRange(
+      mediaUrl,
+      offset,
+      Math.min(head.totalSize - 1, offset + 65535),
+      65536,
+      0,
+      context
+    );
+    var element = readElement(probe.buffer, 0, probe.buffer.length, true);
+    if (
+      !element ||
+      element.id !== ID_CUES ||
+      !Number.isSafeInteger(element.totalSize) ||
+      element.totalSize <= 0 ||
+      element.totalSize > 7 * 1024 * 1024 ||
+      offset + element.totalSize > head.totalSize
+    ) {
+      throw bitmapSubtitleError("INVALID_CUES", "Subtitle Cues exceed the sync budget");
+    }
+    var data = probe.buffer;
+    if (data.length < element.totalSize) {
+      data = (
+        await requestRange(
+          mediaUrl,
+          offset,
+          offset + element.totalSize - 1,
+          element.totalSize,
+          0,
+          context
+        )
+      ).buffer;
+    }
+    var tracks = buildSubtitleSyncTracks(
+      metadata,
+      parseSubtitleSyncCues(
+        data,
+        metadata.timecodeScaleNs,
+        new Set(
+          metadata.tracks.filter(isSubtitleSyncReferenceTrack).map(function (track) {
+            return track.number;
+          })
+        )
+      )
+    );
+    if (context.cancelled || Date.now() >= context.deadline)
+      throw bitmapSubtitleError("SYNC_CANCELLED", "Subtitle sync stopped");
+    if (!tracks.length)
+      throw bitmapSubtitleError("SYNC_NO_REFERENCE", "No usable indexed subtitle timing");
+    return { returnValue: true, tracks: tracks };
+  } finally {
+    clearTimeout(timer);
+    cancelRequestContext(context);
+    if (subtitleSyncRequests.get(requestId) === context) subtitleSyncRequests.delete(requestId);
+  }
+}
+
 module.exports = {
+  getSubtitleSyncTimeline: getSubtitleSyncTimeline,
+  cancelSubtitleSyncTimeline: cancelSubtitleSyncTimeline,
   matroska: {
     parseHeader: parseHeader,
     parseCues: parseCues,
@@ -2226,6 +2497,8 @@ module.exports = {
   prepareBitmapSubtitleSource: prepareBitmapSubtitleSource,
   clearBitmapSubtitleCaches: clearBitmapSubtitleCaches,
   _test: {
+    buildSubtitleSyncTracks: buildSubtitleSyncTracks,
+    parseSubtitleSyncCues: parseSubtitleSyncCues,
     parseHeader: parseHeader,
     parseCues: parseCues,
     parseCluster: parseCluster,

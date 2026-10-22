@@ -77,6 +77,7 @@ export function createPlayerScreenMethods54() {
       if (!this.startupSubtitlePreferenceApplying) {
         this.startupSubtitlePreferenceApplied = true;
       }
+      this.cancelAutomaticSubtitleSync?.();
       const selectionToken = Number(this.subtitleSelectionToken || 0) + 1;
       this.subtitleSelectionToken = selectionToken;
       const previousSubtitleSelectionKey = this.getActiveSubtitleSelectionKey();

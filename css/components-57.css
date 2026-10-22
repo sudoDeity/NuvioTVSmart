@@ -99,6 +99,8 @@ html.no-css-grid .player-dialog-style-item {
 
 html.no-css-grid .player-dialog-item.player-subtitle-delay-entry {
   flex-wrap: nowrap;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 html.no-css-grid .player-subtitle-modal .player-dialog-style-item.player-subtitle-delay-entry {
@@ -106,7 +108,7 @@ html.no-css-grid .player-subtitle-modal .player-dialog-style-item.player-subtitl
 }
 
 html.no-css-grid .player-subtitle-delay-entry > .player-dialog-item-main {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   order: 1;
 }
@@ -114,8 +116,11 @@ html.no-css-grid .player-subtitle-delay-entry > .player-dialog-item-main {
 html.no-css-grid .player-subtitle-delay-entry > .player-subtitle-delay-entry-value {
   flex: 0 0 auto;
   order: 2;
-  margin-top: 0;
-  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 8px;
+  margin-left: 0;
+  white-space: normal;
 }
 
 html.no-css-grid .player-dialog-item-center {

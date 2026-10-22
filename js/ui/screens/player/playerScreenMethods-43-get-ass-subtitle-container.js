@@ -120,6 +120,8 @@ export function createPlayerScreenMethods43() {
         .sort((left, right) => left.start - right.start || left.end - right.end);
     },
     clearHtmlSubtitleOverlay() {
+      this.cancelAutomaticSubtitleSync?.();
+      this.automaticSubtitleSyncOriginalCues = null;
       if (this.htmlSubtitleRenderFrame != null) {
         if (typeof cancelAnimationFrame === "function") {
           cancelAnimationFrame(this.htmlSubtitleRenderFrame);

@@ -9,6 +9,8 @@ export function createPlayerScreenMethods32() {
 
   return {
     updateUiTick() {
+      this.updateAutomaticSubtitleSyncSetting?.();
+      this.refreshAutomaticSubtitleSyncDisplay?.();
       if (this.playerRouteActive) MediaServerScrobbleService.update(this.buildScrobbleContext());
       if (this.isExternalFrameMode()) {
         return;

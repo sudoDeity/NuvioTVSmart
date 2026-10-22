@@ -61,7 +61,11 @@
 }
 
 .player-subtitle-modal .player-dialog-style-item.player-subtitle-delay-entry {
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  gap: 8px;
   padding: min(1.04vw, 20px) min(1.25vw, 24px); /* ATV 10dp/12dp */
 }
 
@@ -73,8 +77,9 @@
 .player-subtitle-delay-entry .player-dialog-item-main {
   grid-column: 1 / 2;
   grid-row: 1;
-  font-size: var(--player-overlay-label-font); /* ATV bodyMedium 14sp */
-  font-weight: 400;
+  min-width: 0;
+  font-size: var(--player-overlay-body-font);
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -82,10 +87,13 @@
   grid-column: 2 / 3;
   grid-row: 1;
   margin-top: 0;
-  font-size: var(--player-overlay-label-font); /* ATV bodyMedium 14sp */
-  line-height: 1.2;
+  min-width: 0;
+  max-width: 100%;
+  font-size: min(1.25vw, 24px);
+  line-height: 1.35;
   color: rgba(255, 255, 255, 0.7);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .player-subtitle-modal

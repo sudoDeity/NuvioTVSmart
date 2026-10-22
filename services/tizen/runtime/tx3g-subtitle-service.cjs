@@ -36,12 +36,29 @@ function parseNumber(value, fallback) {
   return isFinite(number) ? number : fallback;
 }
 
+function isAllowedLocalOrigin(request) {
+  var origin = String(request.headers.origin || "");
+  if (!origin || origin === "null") return true;
+  try {
+    var parsed = new URL(origin);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+  } catch (_) {
+    return false;
+  }
+}
+
 function handleRequest(request, response) {
   var parsed = urlModule.parse(request.url || "/", true);
+  if (!isAllowedLocalOrigin(request) &&
+      (parsed.pathname === "/subtitle-sync" || parsed.pathname === "/subtitle-sync-cancel")) {
+    sendJson(response, 403, { returnValue: false, errorCode: "FORBIDDEN_ORIGIN" });
+    return;
+  }
   if (request.method === "OPTIONS") {
     response.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type"
     });
     response.end();
@@ -54,10 +71,68 @@ function handleRequest(request, response) {
   }
 
   if (
-    (parsed.pathname !== "/tx3g" && parsed.pathname !== "/embedded-text") ||
-    request.method !== "GET"
+    (parsed.pathname !== "/tx3g" && parsed.pathname !== "/embedded-text" &&
+      parsed.pathname !== "/subtitle-sync" && parsed.pathname !== "/subtitle-sync-cancel") ||
+    (parsed.pathname !== "/subtitle-sync" && request.method !== "GET")
   ) {
     sendJson(response, 404, { returnValue: false, errorCode: "NOT_FOUND" });
+    return;
+  }
+
+  if (parsed.pathname === "/subtitle-sync" || parsed.pathname === "/subtitle-sync-cancel") {
+    if (parsed.pathname === "/subtitle-sync-cancel") {
+      getEmbeddedTextParser().cancelSubtitleSyncTimeline(String(parsed.query.requestId || ""));
+      sendJson(response, 200, { returnValue: true });
+      return;
+    }
+    if (request.method !== "POST") {
+      sendJson(response, 405, { returnValue: false, errorCode: "METHOD_NOT_ALLOWED" });
+      return;
+    }
+    if (String(request.headers["content-type"] || "").split(";")[0].trim().toLowerCase() !== "application/json") {
+      sendJson(response, 415, { returnValue: false, errorCode: "UNSUPPORTED_MEDIA_TYPE" });
+      return;
+    }
+    var body = "";
+    var rejected = false;
+    request.on("data", function (chunk) {
+      if (rejected) return;
+      body += chunk.toString("utf8");
+      if (Buffer.byteLength(body, "utf8") > 32768) {
+        rejected = true;
+        sendJson(response, 413, { returnValue: false, errorCode: "REQUEST_TOO_LARGE" });
+      }
+    });
+    request.on("end", function () {
+      if (rejected) return;
+      var payload;
+      try {
+        payload = JSON.parse(body);
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw Error("body");
+      } catch (_) {
+        sendJson(response, 400, { returnValue: false, errorCode: "INVALID_JSON" });
+        return;
+      }
+      var syncRequestId = String(payload.requestId || "");
+      response.on("close", function () {
+        getEmbeddedTextParser().cancelSubtitleSyncTimeline(syncRequestId);
+      });
+      getEmbeddedTextParser().getSubtitleSyncTimeline({
+        url: String(payload.url || ""), requestId: syncRequestId, headers: payload.headers || {}
+      }).then(function (result) {
+        if (!response.destroyed) sendJson(response, 200, result);
+      }).catch(function (error) {
+        if (!response.destroyed) sendJson(response, 422, {
+          returnValue: false, errorCode: String(error.code || "SYNC_FAILED")
+        });
+      });
+    });
+    request.on("error", function () {
+      if (!rejected) {
+        rejected = true;
+        if (!response.headersSent) sendJson(response, 400, { returnValue: false, errorCode: "INVALID_REQUEST" });
+      }
+    });
     return;
   }
 

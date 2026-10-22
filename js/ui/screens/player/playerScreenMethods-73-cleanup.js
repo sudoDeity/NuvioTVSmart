@@ -6,6 +6,7 @@ export function createPlayerScreenMethods73() {
 
   return {
     cleanup() {
+      this.cancelAutomaticSubtitleSync?.(true);
       this.closeStreamInfo({ restore: false });
       // Android stopAndRelease(): read the position before playback is torn down.
       try {

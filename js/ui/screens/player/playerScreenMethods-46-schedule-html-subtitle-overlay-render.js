@@ -234,6 +234,7 @@ export function createPlayerScreenMethods46() {
           this.refreshSubtitleCueStyles();
           this.renderControlButtons();
           this.renderSubtitleDialog();
+          this.startAutomaticSubtitleSync?.(subtitle, cues, selectionToken);
           return true;
         }
       }
@@ -283,6 +284,7 @@ export function createPlayerScreenMethods46() {
       this.refreshSubtitleCueStyles();
       this.renderControlButtons();
       this.renderSubtitleDialog();
+      this.startAutomaticSubtitleSync?.(subtitle, cues, selectionToken);
       return true;
     },
     activateMountedExternalSubtitleTrack(trackNode) {

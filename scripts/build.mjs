@@ -597,6 +597,19 @@ async function buildPluginRuntimeAssets() {
   );
 }
 
+async function buildSubtitleSyncWorker() {
+  await build({
+    entryPoints: [path.join(rootDir, "js/core/player/automaticSubtitleSyncWorker.js")],
+    outfile: path.join(distDir, "assets/runtime/subtitle-sync-worker.js"),
+    bundle: true,
+    platform: "browser",
+    format: "iife",
+    target: [`chrome${compatibilityPolicy.chromiumVersion}`],
+    minify: !debugBundle,
+    legalComments: "none"
+  });
+}
+
 async function buildBundle() {
   const { version } = await readAppMetadata();
 
@@ -666,6 +679,7 @@ async function runBuild() {
     ]);
     await buildAssSubtitleLibrary();
     await buildPluginRuntimeAssets();
+    await buildSubtitleSyncWorker();
     await cp(
       path.join(rootDir, "node_modules", "libbitsub", "pkg", "libbitsub_bg.wasm"),
       path.join(distDir, "assets", "libs", "libbitsub_bg.wasm")

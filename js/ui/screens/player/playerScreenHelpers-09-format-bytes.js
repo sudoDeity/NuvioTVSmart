@@ -357,7 +357,17 @@ export function resolvePlayerSourceBadgePlacement(badgeSettings = StreamBadgeSet
 
 export function formatSubtitleDelay(delayMs = 0) {
   const seconds = Number(delayMs || 0) / 1000;
-  return `${seconds >= 0 ? "+" : ""}${seconds.toFixed(3)}s`;
+  let value = Math.abs(seconds).toFixed(3);
+  try {
+    value = Math.abs(seconds).toLocaleString(I18n.getLocale(), {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+      useGrouping: false
+    });
+  } catch (_) {
+    // Keep the control usable on runtimes with incomplete locale data.
+  }
+  return `${seconds >= 0 ? "+" : "−"}${value} s`;
 }
 
 export function normalizeSubtitleFontSize(value = 120) {

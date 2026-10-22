@@ -28,6 +28,12 @@ export function renderPlaybackSubtitleBody(model) {
             })}
             ${this.renderActionRow({ focusKey: "playback:secondarySubtitleLanguage", title: t("sub_secondary_lang", {}, "Secondary subtitle language"), subtitle: t("sub_secondary_lang_sub", {}, "Fallback language when the preferred language is unavailable"), value: labelForSubtitlePlaybackLanguage(model.player.secondarySubtitleLanguage) })}
             ${this.renderToggleRow({
+              focusKey: "playback:automaticSubtitleSync",
+              title: t("subtitle_automatic_sync_title", {}, "Auto sync subtitles"),
+              subtitle: t("subtitle_automatic_sync_description", {}, "Match add-on subtitles to embedded subtitle timing when available."),
+              checked: model.player.subtitleStyle?.automaticSync === true
+            })}
+            ${this.renderToggleRow({
               focusKey: "playback:useForcedSubtitles",
               title: t("settings.playback.useForcedSubtitles.title", {}, "Use forced subtitles"),
               subtitle: t(

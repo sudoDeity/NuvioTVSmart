@@ -19,7 +19,7 @@ export function createPlayerScreenMethods70() {
         return true;
       }
 
-      if (this.subtitleDelayOverlayVisible && this.handleSubtitleDelayOverlayPointer(target)) {
+      if (this.subtitleDelayOverlayVisible && this.handleSubtitleDelayOverlayPointer(target, event)) {
         return true;
       }
 

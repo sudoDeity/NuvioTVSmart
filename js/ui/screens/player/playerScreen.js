@@ -1,3 +1,4 @@
+import { PlayerAutomaticSubtitleSyncMethods } from "./playerAutomaticSubtitleSync.js";
 import { StreamInfoMethods } from "./streamInfoOverlay.js";
 import { createPlayerScreenMethods01 } from "./playerScreenMethods-01-mount.js";
 import { createPlayerScreenMethods02 } from "./playerScreenMethods-02-get-post-play-state.js";
@@ -76,6 +77,7 @@ import { createPlayerScreenMethods73 } from "./playerScreenMethods-73-cleanup.js
 import { createPlayerPartyMethods } from "./playerParty.js";
 export * from "./playerScreenContext.js";
 export const PlayerScreen = {
+  ...PlayerAutomaticSubtitleSyncMethods,
   ...StreamInfoMethods,
   ...createPlayerScreenMethods01(),
   ...createPlayerScreenMethods02(),

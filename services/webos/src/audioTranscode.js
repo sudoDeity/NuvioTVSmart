@@ -426,7 +426,7 @@ async function createSession(options) {
 function handle(req, res) {
   const pathname = String(req.url || "").split("?")[0];
   if (
-    /^\/audio-transcode\/assets\/(ffmpeg-core\.js|ffmpeg-core\.wasm|worker\.js)$/.test(pathname)
+    /^\/audio-transcode\/assets\/(ffmpeg-core\.js|ffmpeg-core\.wasm|worker\.js|sample-worker\.js)$/.test(pathname)
   ) {
     cors(res);
     const name = pathname.split("/").pop();

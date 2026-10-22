@@ -37,6 +37,16 @@
           "public": true
         },
         {
+          "name": "subtitleSyncTimeline",
+          "description": "Read bounded indexed subtitle timing for optional automatic synchronization",
+          "public": true
+        },
+        {
+          "name": "subtitleSyncCancel",
+          "description": "Cancel an automatic subtitle timing request",
+          "public": true
+        },
+        {
           "name": "embeddedSubtitleTextWindow",
           "description": "Extract a bounded VTT/ASS window from an embedded Matroska text subtitle track",
           "public": true

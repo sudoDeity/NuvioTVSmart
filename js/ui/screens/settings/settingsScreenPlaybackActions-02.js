@@ -46,6 +46,15 @@ export function registerPlaybackActionsPart02(model) {
       }
     });
   });
+  this.actionMap.set("playback:automaticSubtitleSync", () => {
+    const currentSettings = PlayerSettingsStore.get();
+    PlayerSettingsStore.set({
+      subtitleStyle: {
+        ...currentSettings.subtitleStyle,
+        automaticSync: currentSettings.subtitleStyle?.automaticSync !== true
+      }
+    });
+  });
   this.actionMap.set("playback:useForcedSubtitles", () => {
     const currentSettings = PlayerSettingsStore.get();
     PlayerSettingsStore.set({

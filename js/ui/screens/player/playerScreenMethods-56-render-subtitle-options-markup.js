@@ -267,7 +267,12 @@ export function createPlayerScreenMethods56() {
           ? (this.subtitleAutoSyncCapturedVideoMs ?? Math.max(0, Math.trunc(this.getPlaybackCurrentSeconds() * 1000)))
           : Number(anchorTimeMs);
       return selectSubtitleAutoSyncVisibleCues(
-        this.subtitleAutoSyncCues,
+        (this.subtitleAutoSyncCues || []).map((cue) => ({
+          ...cue,
+          originalStartTimeMs: cue.startTimeMs,
+          startTimeMs: this.getAutomaticSubtitleSyncCueTimeMs?.(cue.startTimeMs) ?? cue.startTimeMs,
+          endTimeMs: this.getAutomaticSubtitleSyncCueTimeMs?.(cue.endTimeMs) ?? cue.endTimeMs
+        })),
         Number.isFinite(anchor) ? anchor : 0,
         SUBTITLE_AUTO_SYNC_MARGIN_MS,
         SUBTITLE_AUTO_SYNC_MAX_VISIBLE_CUES

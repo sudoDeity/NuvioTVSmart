@@ -518,6 +518,25 @@ function registerBitmapSubtitleCommand() {
 }
 
 function registerEmbeddedTextSubtitleCommand() {
+  service.register("subtitleSyncTimeline", function (message) {
+    var payload = getMessagePayload(message);
+    bitmapSubtitles
+      .getSubtitleSyncTimeline(payload)
+      .then(function (result) {
+        respond(message, Object.assign(buildBasePayload(), result));
+      })
+      .catch(function (error) {
+        respond(
+          message,
+          buildErrorPayload(error, { errorCode: String(error.code || "SYNC_FAILED") })
+        );
+      });
+  });
+  service.register("subtitleSyncCancel", function (message) {
+    bitmapSubtitles.cancelSubtitleSyncTimeline(getMessagePayload(message).requestId);
+    respond(message, { returnValue: true });
+  });
+
   service.register("embeddedSubtitleTextWindow", function (message) {
     var payload = getMessagePayload(message);
     getEmbeddedTextSubtitleWindow({

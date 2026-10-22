@@ -13,7 +13,8 @@ export function createPlayerScreenMethods58() {
     t,
     clamp,
     escapeHtml,
-    escapeAttribute
+    escapeAttribute,
+    formatSubtitleDelay
   } = internals;
 
   return {
@@ -38,7 +39,8 @@ export function createPlayerScreenMethods58() {
       setTimeout(() => this.syncSubtitleTimingFocusDom({ focus: true }), 50);
     },
     applySubtitleAutoSyncCue(cue = null) {
-      const cueStartTimeMs = Number(cue?.startTimeMs);
+      const originalTimeMs = Number(cue?.originalStartTimeMs ?? cue?.startTimeMs);
+      const cueStartTimeMs = this.getAutomaticSubtitleSyncCueTimeMs?.(originalTimeMs) ?? originalTimeMs;
       const capturePositionMs = Number(this.subtitleAutoSyncCapturedVideoMs ?? this.getPlaybackCurrentSeconds() * 1000);
       if (!Number.isFinite(cueStartTimeMs) || !Number.isFinite(capturePositionMs)) {
         return;
@@ -64,7 +66,7 @@ export function createPlayerScreenMethods58() {
       this.renderSubtitleTimingDialog();
       this.renderSubtitleDelayOverlay();
       this.updateModalBackdrop();
-      this.scheduleHideSubtitleDelayOverlay();
+      this.syncSubtitleDelayOverlayFocusDom?.({ focus: true });
     },
     syncSubtitleTimingFocusDom({ focus = false, scroll = true } = {}) {
       const dialog = this.uiRefs?.subtitleTimingDialog;
@@ -165,7 +167,7 @@ export function createPlayerScreenMethods58() {
       if (this.subtitleTimingStage === "wait") {
         dialog.innerHTML = `
             <div class="player-subtitle-timing-panel player-subtitle-timing-panel-wait">
-              <div class="player-subtitle-timing-prompt">${escapeHtml(t("subtitle_timing_press_sync", {}, "Press Sync when you hear a dialog line."))}</div>
+              <div class="player-subtitle-timing-prompt">${escapeHtml(t("subtitle_timing_press_sync", {}, "Press Capture when you hear a spoken line. Then select that line."))}</div>
               <button class="player-subtitle-timing-sync-button focusable" type="button" tabindex="-1" data-subtitle-timing-action="capture">${escapeHtml(t("subtitle_timing_sync_button", {}, "Sync"))}</button>
             </div>
           `;
@@ -234,10 +236,13 @@ export function createPlayerScreenMethods58() {
     renderSubtitleStyleItemMarkup(item, index) {
       if (item.id === "delay") {
         const interactive = !item.disabled;
+        const status = this.getAutomaticSubtitleSyncStatusLabel?.();
         return `
             <div class="player-dialog-item player-dialog-style-item player-subtitle-delay-entry${item.disabled ? " disabled" : ""}${interactive ? " focusable" : ""}" data-subtitle-rail="style" data-subtitle-index="${index}" data-subtitle-key="${escapeAttribute(item.id)}" data-subtitle-delay-action="open" aria-disabled="${item.disabled ? "true" : "false"}"${interactive ? ' tabindex="-1"' : ""}>
               <div class="player-dialog-item-main">${escapeHtml(item.label)}</div>
-              <div class="player-dialog-item-sub player-subtitle-delay-entry-value" dir="ltr">${escapeHtml(item.value || "")}</div>
+              <div class="player-dialog-item-sub player-subtitle-delay-entry-value">
+                <span data-subtitle-sync-summary role="status" aria-live="polite" aria-atomic="true">${escapeHtml(status ? `${t("subtitle_sync_automatic_short", {}, "Automatic")} · ${status}` : t("subtitle_sync_manual_short", {}, "Manual adjustment"))}</span>
+              </div>
             </div>
           `;
       }
@@ -251,6 +256,27 @@ export function createPlayerScreenMethods58() {
             <button class="player-dialog-step player-dialog-step-plus${item.disabled ? "" : " focusable"}" type="button" data-subtitle-style-action="increase" data-subtitle-rail="style" data-subtitle-index="${index}" data-style-id="${escapeAttribute(item.id)}" aria-label="${escapeAttribute(`${item.label} +`)}"${item.disabled ? " disabled" : ""}>&#43;</button>
           </div>
         `;
+    },
+    getAutomaticSubtitleSyncStatusLabel() {
+      switch (this.getAutomaticSubtitleSyncStatus?.()) {
+        case "checking":
+          return t("subtitle_automatic_sync_checking", {}, "Matching…");
+        case "synchronized":
+          return t("subtitle_automatic_sync_synchronized", {}, "Synchronized");
+        case "unavailable":
+          return t("subtitle_automatic_sync_unavailable", {}, "No reliable match possible");
+        default:
+          return "";
+      }
+    },
+    refreshAutomaticSubtitleSyncStatusDisplay() {
+      if (!this.subtitleDialogVisible) return;
+      const label = this.getAutomaticSubtitleSyncStatusLabel();
+      const summary = this.uiRefs?.subtitleDialog?.querySelector?.("[data-subtitle-sync-summary]");
+      const text = label
+        ? `${t("subtitle_sync_automatic_short", {}, "Automatic")} · ${label}`
+        : t("subtitle_sync_manual_short", {}, "Manual adjustment");
+      if (summary && summary.textContent !== text) summary.textContent = text;
     },
     renderSubtitleDialog() {
       const dialog = this.uiRefs?.subtitleDialog;
