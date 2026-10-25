@@ -55,6 +55,19 @@ export function registerPlaybackActionsPart02(model) {
       }
     });
   });
+  this.actionMap.set("playback:audioSubtitleSync", () => {
+    const current = PlayerSettingsStore.get();
+    PlayerSettingsStore.set({ subtitleStyle: { ...current.subtitleStyle, audioSync: current.subtitleStyle?.audioSync === false } });
+  });
+  this.actionMap.set("playback:audioSubtitleSampling", () => {
+    this.openOptionDialog({
+      title: t("subtitle_audio_sampling_title", {}, "Audio sampling"),
+      options: ["off", "low", "high"].map(id => ({ id, label: t("subtitle_audio_sampling_" + id, {}, id) })),
+      selectedId: PlayerSettingsStore.get().subtitleStyle?.audioSyncSampling || "low",
+      returnFocusKey: "playback:audioSubtitleSampling",
+      onSelect: option => { const current = PlayerSettingsStore.get(); PlayerSettingsStore.set({ subtitleStyle: { ...current.subtitleStyle, audioSyncSampling: option.id } }); }
+    });
+  });
   this.actionMap.set("playback:useForcedSubtitles", () => {
     const currentSettings = PlayerSettingsStore.get();
     PlayerSettingsStore.set({

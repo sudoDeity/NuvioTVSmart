@@ -4,6 +4,8 @@
 var http = require("http");
 var urlModule = require("url");
 var parser = require("./tx3g-subtitle-parser.cjs");
+var audioSamples = require("../../shared/audio-sync/audioSamples.cjs");
+audioSamples.configureAssets(require("path").join(__dirname, "audio-sync"));
 var embeddedTextParser = null;
 
 // Keep this outside the media runtime's 2710-2714 candidate range so a media
@@ -49,6 +51,7 @@ function isAllowedLocalOrigin(request) {
 }
 
 function handleRequest(request, response) {
+  if (audioSamples.handle(request, response)) return;
   var parsed = urlModule.parse(request.url || "/", true);
   if (!isAllowedLocalOrigin(request) &&
       (parsed.pathname === "/subtitle-sync" || parsed.pathname === "/subtitle-sync-cancel")) {

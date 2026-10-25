@@ -4,6 +4,7 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import JSZip from "jszip";
+import { build } from "esbuild";
 import { readAppMetadata, syncVersionFiles } from "./appMetadata.mjs";
 import { compatibilityPolicy } from "./compatibilityPolicy.mjs";
 import { writeRuntimeEnvScriptFile } from "./envProperties.mjs";
@@ -280,6 +281,14 @@ async function stageTizenEngineFsService() {
       `${tizenEngineFsRuntimeDirRelativePath}/embedded-text-subtitle-parser.cjs`
     )
   );
+  await mkdir(path.join(stagingDir, "services/shared/audio-sync"), { recursive: true });
+  await build({
+    entryPoints: [path.join(rootDir, "services/shared/audio-sync/audioSamples.cjs")],
+    outfile: path.join(stagingDir, "services/shared/audio-sync/audioSamples.cjs"),
+    bundle: true, platform: "node", format: "cjs", target: "node8"
+  });
+  await cp(path.join(rootDir, "services/webos/runtime/dts"),
+    path.join(stagingDir, tizenEngineFsRuntimeDirRelativePath, "audio-sync"), { recursive: true });
 }
 
 async function stageTizenPluginService() {
@@ -605,7 +614,11 @@ function requiredTizenServiceFiles({
           `${tizenEngineFsRuntimeDirRelativePath}/proxy-redirect-report-patch.cjs`,
           `${tizenEngineFsRuntimeDirRelativePath}/tx3g-subtitle-parser.cjs`,
           `${tizenEngineFsRuntimeDirRelativePath}/tx3g-subtitle-service.cjs`,
-          `${tizenEngineFsRuntimeDirRelativePath}/embedded-text-subtitle-parser.cjs`
+          `${tizenEngineFsRuntimeDirRelativePath}/embedded-text-subtitle-parser.cjs`,
+          "services/shared/audio-sync/audioSamples.cjs",
+          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/sample-worker.js`,
+          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/ffmpeg-core.js`,
+          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/ffmpeg-core.wasm`
         ]
       : []),
     ...(requirePluginService

@@ -4,6 +4,8 @@
   "type": "module",
   "version": "1.2.9",
   "scripts": {
+    "sync:silero": "node scripts/sync-silero.mjs",
+    "test:audio-sync": "node --test scripts/test-audio-sync*.mjs",
     "build": "node ./scripts/build.mjs",
     "test": "npm run test:plugins",
     "test:audio-sample": "node --test scripts/test-webos-audio-sample-decoder.mjs",

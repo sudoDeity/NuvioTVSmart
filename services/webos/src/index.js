@@ -518,6 +518,17 @@ function registerBitmapSubtitleCommand() {
 }
 
 function registerEmbeddedTextSubtitleCommand() {
+  var audioSamples = require("./audioSamples");
+  service.register("audioSampleCreate", function (message) {
+    audioSamples.create(getMessagePayload(message)).then(
+      function (result) { respond(message, result); },
+      function () { respond(message, { returnValue: false, errorCode: "AUDIO_SAMPLE_UNAVAILABLE" }); }
+    );
+  });
+  service.register("audioSampleCancel", function (message) {
+    audioSamples.cancel(getMessagePayload(message).requestId);
+    respond(message, { returnValue: true });
+  });
   service.register("subtitleSyncTimeline", function (message) {
     var payload = getMessagePayload(message);
     bitmapSubtitles

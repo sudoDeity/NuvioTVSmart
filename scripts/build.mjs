@@ -599,6 +599,12 @@ async function buildPluginRuntimeAssets() {
 
 async function buildSubtitleSyncWorker() {
   await build({
+    entryPoints: [path.join(rootDir, "js/core/player/audioSync/worker.js")],
+    outfile: path.join(distDir, "assets/runtime/audio-sync-worker.js"),
+    bundle: true, platform: "browser", format: "iife",
+    target: [`chrome${compatibilityPolicy.chromiumVersion}`], minify: !debugBundle
+  });
+  await build({
     entryPoints: [path.join(rootDir, "js/core/player/automaticSubtitleSyncWorker.js")],
     outfile: path.join(distDir, "assets/runtime/subtitle-sync-worker.js"),
     bundle: true,

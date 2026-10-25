@@ -712,7 +712,9 @@ test("automatic mode hides manual tools; failure and switching off expose them w
   await settle();
   workers[1].onmessage({ data: { result: { scale: 1, offset: 0.083 } } });
   assert.equal(hidden("manual"), true);
-  assert.equal(hidden("adjustment"), false);
+  // The automatic result is in the status row; the adjustment container
+  // contains only manual tools and stays hidden after a successful match.
+  assert.equal(hidden("adjustment"), true);
   assert.equal(player.getSubtitleSynchronizationDelayMs(), 83);
   assert.equal(nodes.get(".player-subtitle-sync-failure-dot").classList.contains("hidden"), true);
   let opened = false;

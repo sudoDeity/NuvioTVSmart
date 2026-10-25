@@ -34,6 +34,18 @@ export function renderPlaybackSubtitleBody(model) {
               checked: model.player.subtitleStyle?.automaticSync === true
             })}
             ${this.renderToggleRow({
+              focusKey: "playback:audioSubtitleSync",
+              title: t("subtitle_audio_sync_title", {}, "Sync subtitles to audio"),
+              subtitle: t("subtitle_audio_sync_description", {}, "When Auto sync cannot find a subtitle reference, match dialogue in the selected audio track. Audio stays on this TV."),
+              checked: model.player.subtitleStyle?.audioSync !== false
+            })}
+            ${this.renderActionRow({
+              focusKey: "playback:audioSubtitleSampling",
+              title: t("subtitle_audio_sampling_title", {}, "Audio sampling"),
+              subtitle: t("subtitle_audio_sampling_description", {}, "Read dialogue ahead for faster matching. Low uses at most 75 MB per subtitle analysis; High uses 150 MB."),
+              value: t("subtitle_audio_sampling_" + (model.player.subtitleStyle?.audioSyncSampling || "low"), {}, "Low")
+            })}
+            ${this.renderToggleRow({
               focusKey: "playback:useForcedSubtitles",
               title: t("settings.playback.useForcedSubtitles.title", {}, "Use forced subtitles"),
               subtitle: t(

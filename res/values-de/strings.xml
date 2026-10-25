@@ -2545,4 +2545,11 @@
     <string name="party_invite_scan">Mit dem Smartphone scannen, um beizutreten</string>
     <string name="party_invite_share">Oder teile den Code. Freunde können ihn in jeder Nuvio-App unter Watch Party eingeben.</string>
     <string name="party_invite_qr">QR-Code der Watch-Party-Einladung</string>
+    <string name="subtitle_audio_sync_title">Untertitel am Ton ausrichten</string>
+    <string name="subtitle_audio_sync_description">Wenn Auto-Sync keine Untertitelreferenz findet, werden Dialoge der gewählten Tonspur verglichen. Der Ton bleibt auf diesem Fernseher.</string>
+    <string name="subtitle_audio_sampling_title">Audioanalyse im Voraus</string>
+    <string name="subtitle_audio_sampling_description">Dialogstellen für einen schnelleren Abgleich vorauslesen. Niedrig verwendet höchstens 75 MB pro Untertitelanalyse, Hoch 150 MB. Aus analysiert nur nahe der Wiedergabeposition.</string>
+    <string name="subtitle_audio_sampling_off">Aus</string>
+    <string name="subtitle_audio_sampling_low">Niedrig</string>
+    <string name="subtitle_audio_sampling_high">Hoch</string>
 </resources>

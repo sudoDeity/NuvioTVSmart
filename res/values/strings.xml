@@ -3276,6 +3276,13 @@
     <string name="subtitle_automatic_sync_unavailable">No reliable match possible</string>
     <string name="subtitle_automatic_sync_manual_short">Manual</string>
     <string name="subtitle_automatic_sync_description">Match add-on subtitles to embedded subtitle timing when available.</string>
+    <string name="subtitle_audio_sync_title">Sync subtitles to audio</string>
+    <string name="subtitle_audio_sync_description">When Auto sync cannot find a subtitle reference, match dialogue in the selected audio track. Audio stays on this TV.</string>
+    <string name="subtitle_audio_sampling_title">Audio sampling</string>
+    <string name="subtitle_audio_sampling_description">Read dialogue ahead for faster matching. Low uses at most 75 MB per subtitle analysis; High uses 150 MB. Off only samples around playback.</string>
+    <string name="subtitle_audio_sampling_off">Off</string>
+    <string name="subtitle_audio_sampling_low">Low</string>
+    <string name="subtitle_audio_sampling_high">High</string>
     <string name="subtitle_sync_title">Synchronization</string>
     <string name="subtitle_sync_automatic">Match automatically</string>
     <string name="subtitle_sync_automatic_short">Automatic</string>

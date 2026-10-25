@@ -1,0 +1,16 @@
+{
+  "abi": 1,
+  "sampleRate": 16000,
+  "chunkSamples": 512,
+  "detectorBiasMs": 100,
+  "variants": [
+    {
+      "name": "modern",
+      "wasm": "modern/vad.wasm",
+      "script": "modern/vad-runtime.js",
+      "sha256": "61dbcbe0d588520d190239085e8778be63ea3366e2660345f9c7e72bc5fffdb8"
+    }
+  ],
+  "modelHash": "b1462c1cec8a72f154657704c0acdb698742769e04811a942ada3e440852af22",
+  "version": "e5614d00a14f8d50a1dda86c"
+}

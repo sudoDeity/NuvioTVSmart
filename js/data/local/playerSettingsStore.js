@@ -56,6 +56,8 @@ const DEFAULTS = {
     secondaryPreferredLanguage: "off",
     useForcedSubtitles: false,
     automaticSync: false,
+    audioSync: true,
+    audioSyncSampling: "low",
     showOnlyPreferredLanguages: false
   },
   audioAmplificationDb: 0,
@@ -378,7 +380,9 @@ export function normalizePlayerSettings(settings = {}) {
       secondaryPreferredLanguage,
       useForcedSubtitles,
       showOnlyPreferredLanguages: Boolean(subtitleStyle.showOnlyPreferredLanguages),
-      automaticSync: subtitleStyle.automaticSync === true
+      automaticSync: subtitleStyle.automaticSync === true,
+      audioSync: subtitleStyle.audioSync !== false,
+      audioSyncSampling: ["off", "low", "high"].includes(subtitleStyle.audioSyncSampling) ? subtitleStyle.audioSyncSampling : "low"
     }
   };
 }
