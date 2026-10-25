@@ -228,8 +228,9 @@ async function extractMp4AudioSample(options, context, header) {
   const packets = [];
   let size = 0,
     cacheStart = -1,
-    cache = Buffer.alloc(0);
-  for (let chunk = 1; chunk <= nChunks && found < wanted.length; chunk++) {
+    cache = Buffer.alloc(0),
+    partial = false;
+  for (let chunk = 1; !partial && chunk <= nChunks && found < wanted.length; chunk++) {
     while (mapIndex + 1 < nMaps && moov.readUInt32BE(stsc.data + 8 + (mapIndex + 1) * 12) <= chunk)
       mapIndex++;
     const p = stsc.data + 8 + mapIndex * 12;
@@ -258,21 +259,28 @@ async function extractMp4AudioSample(options, context, header) {
         }
         let packet = cache.subarray(cursor - cacheStart, cursor - cacheStart + length);
         if (config) packet = adts(packet, config);
+        if (size + packet.length > 4 * 1024 * 1024) {
+          if (found && wanted[found - 1].endMs >= options.positionMs + 2000) {
+            partial = true;
+            break;
+          }
+          fail();
+        }
         size += packet.length;
-        if (size > 4 * 1024 * 1024) fail();
         packets.push(Buffer.from(packet));
         found++;
       }
       cursor += length;
     }
   }
-  if (found !== wanted.length) fail();
+  if (!partial && found !== wanted.length) fail();
   return {
     input: Buffer.concat(packets, size),
     format,
     audioIndex: options.selection.audioIndex,
     startMs: wanted[0].startMs,
-    endMs: wanted[wanted.length - 1].endMs,
+    endMs: wanted[found - 1].endMs,
+    partial,
     networkBytes: context.bytes
   };
 }

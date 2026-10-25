@@ -147,7 +147,7 @@ export class AudioSubtitleSyncSession {
         this.onStatus("synchronized");
         await this.exchange({ type: "adopt", id: subtitleId, mapping: remembered });
       }
-      const candidates = await this.loadCandidates();
+      const candidates = mapping?.confirmed ? [] : await this.loadCandidates();
       lastProgress = Date.now();
       if (!current()) return;
       if (candidates.length)

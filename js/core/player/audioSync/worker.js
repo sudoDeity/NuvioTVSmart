@@ -84,6 +84,10 @@ self.onmessage = async ({ data }) => {
         track.tracker.mapping = data.mapping;
       postMessage({ type: "adopted" });
     } else if (data.type === "sample" && ready) {
+      // Once the selected subtitle is confirmed, stop re-scoring alternatives
+      // on every playback update. Their initial search must not become steady CPU load.
+      const owner = tracks.find((t) => t.id === data.selectedId && t.tracker.mapping?.confirmed);
+      if (owner) tracks = [owner];
       const timeline = stream.ingest(data.pcm, data.startMs);
       const results = tracks.map((t) => ({
         id: t.id,

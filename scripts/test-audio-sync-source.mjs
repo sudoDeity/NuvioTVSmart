@@ -194,6 +194,58 @@ test("invalid audio selection is rejected instead of guessing another track", as
     )
   );
 });
+for (const [codec, format, channels] of [
+  ["dca", "dts", 6],
+  ["truehd", "truehd", 8]
+]) {
+  test(`long ${format} windows shorten at whole-frame resource limits and still decode`, async () => {
+    const filename = path.join(temp, `long-${format}.mkv`);
+    const expression = Array.from(
+      { length: channels },
+      (_, i) => `0.04*sin(2*PI*${440 + i * 97}*t)`
+    ).join("|");
+    const made = spawnSync(
+      "ffmpeg",
+      [
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=32x32:rate=2:duration=32",
+        "-f",
+        "lavfi",
+        "-i",
+        `aevalsrc=${expression}:s=48000:d=32:c=${channels === 8 ? "7.1" : "5.1"}`,
+        "-c:v",
+        "mpeg4",
+        "-g",
+        "2",
+        "-c:a",
+        codec,
+        "-strict",
+        "-2",
+        ...(codec === "dca" ? ["-b:a", "1536k"] : []),
+        "-y",
+        filename
+      ],
+      { encoding: "utf8" }
+    );
+    assert.equal(made.status, 0, made.stderr);
+    await withServer(ranged(fs.readFileSync(filename)), async (base) => {
+      const sample = await extractAudioSample(
+        { url: base, selection: { audioIndex: 0 }, positionMs: 1000, durationMs: 28000 },
+        context(base)
+      );
+      assert.equal(sample.partial, true);
+      assert.ok(sample.input.length <= 4 * 1024 * 1024);
+      assert.ok(sample.endMs >= 3000 && sample.endMs < 29000);
+      const pcm = await decode(sample);
+      assert.equal(pcm.error, undefined);
+      assert.ok(pcm.durationSeconds >= 2);
+    });
+  });
+}
 test("large video blocks are skipped rather than downloaded as audio input", async () => {
   const filename = path.join(temp, "large-video.mkv");
   const made = spawnSync(

@@ -262,7 +262,9 @@ async function extractAudioSample(options, context) {
     endMs = null,
     rate = null,
     size = 0,
-    elements = 0;
+    elements = 0,
+    partial = false;
+  const canShorten = () => first !== null && endMs >= positionMs + 2000;
   function collect(block, clock) {
     const data = packets(block, { dataStart: 0, dataEnd: block.length });
     if (data.track !== track.number) return;
@@ -304,11 +306,17 @@ async function extractAudioSample(options, context) {
         if (next > wantedStart && (first === null || endMs < positionMs + durationMs)) {
           if (endMs !== null && Math.abs(pts - endMs) > Math.max(2, scale * 1.1))
             fail("AUDIO_SAMPLE_DISCONTINUITY");
+          if (size + info.bytes > LIMIT || input.length >= 40000) {
+            if (canShorten()) {
+              partial = true;
+              return;
+            }
+            fail("AUDIO_SAMPLE_INPUT_LIMIT");
+          }
           if (first === null) first = pts;
           // Use sample counts rather than accumulating rounded Matroska timestamps.
           endMs = first + ((endMs === null ? 0 : endMs - first) + (info.samples * 1000) / rate);
           size += info.bytes;
-          if (size > LIMIT || input.length >= 40000) fail("AUDIO_SAMPLE_INPUT_LIMIT");
           input.push(Buffer.from(packet.subarray(p, p + info.bytes)));
         }
         pts = next;
@@ -316,14 +324,31 @@ async function extractAudioSample(options, context) {
       }
     }
   }
-  while (cursor < metadata.segmentDataEnd && (endMs === null || endMs < positionMs + durationMs)) {
-    if (++elements > 20000 || context.cancelled) fail("AUDIO_SAMPLE_CANCELLED");
+  while (
+    !partial &&
+    cursor < metadata.segmentDataEnd &&
+    (endMs === null || endMs < positionMs + durationMs)
+  ) {
+    if (context.cancelled) fail("AUDIO_SAMPLE_CANCELLED");
+    if (++elements > 20000) {
+      if (canShorten()) {
+        partial = true;
+        break;
+      }
+      fail("AUDIO_SAMPLE_ELEMENT_LIMIT");
+    }
     const cluster = await elementAt(cursor, metadata.segmentDataEnd);
     cursor = cluster.end;
     if (cluster.id !== 0x1f43b675) continue;
     let clock = null;
     for (let p = cluster.dataStart; p < cluster.end;) {
-      if (++elements > 20000) fail("AUDIO_SAMPLE_ELEMENT_LIMIT");
+      if (++elements > 20000) {
+        if (canShorten()) {
+          partial = true;
+          break;
+        }
+        fail("AUDIO_SAMPLE_ELEMENT_LIMIT");
+      }
       const child = await elementAt(p, cluster.end);
       p = child.end;
       if (child.id === 0xe7)
@@ -360,10 +385,10 @@ async function extractAudioSample(options, context) {
           fail("AUDIO_SAMPLE_DISCARD_PADDING");
         collect(data, clock);
       }
-      if (endMs !== null && endMs >= positionMs + durationMs) break;
+      if (partial || (endMs !== null && endMs >= positionMs + durationMs)) break;
     }
   }
-  if (first === null || first > positionMs || endMs < positionMs + durationMs)
+  if (first === null || first > positionMs || (!partial && endMs < positionMs + durationMs))
     fail("AUDIO_SAMPLE_INCOMPLETE");
   return {
     input: Buffer.concat(input, size),
@@ -377,6 +402,7 @@ async function extractAudioSample(options, context) {
     sampleRate: rate,
     positionMs,
     durationMs,
+    partial,
     networkBytes: context.bytes
   };
 }

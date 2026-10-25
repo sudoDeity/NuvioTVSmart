@@ -14,6 +14,8 @@ The audio switch defaults to enabled but does nothing while the main Auto sync s
 
 Spot and subsequent playhead sampling share that budget. Individual windows are at most 28 seconds with room for decoder preroll, at most 32 MiB of network reads, and at most 4 MiB of compressed audio. Only one sample decoder runs at a time. Sampling pauses during known buffering, playback pause, or a known buffer below five seconds. Unknown AVPlay buffer length is not treated as a measured buffer. Loopback sources do not receive speculative spot reads.
 
+High-bitrate or densely packetized tracks can return a shorter window at complete frame boundaries rather than discard usable audio at the compressed-input/element limit. Such a window must cover at least two seconds after the requested position. The matcher counts the actual known audio, so shorter HD windows can require more samples before confirmation. Confirmed selected tracks stop the alternative search to bound ongoing matcher CPU work.
+
 ## Rust boundary: ABI 1
 
 The integration consumes the existing wasm-bindgen interface:
