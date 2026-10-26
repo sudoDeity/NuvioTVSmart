@@ -54,6 +54,9 @@ function harness(options = {}) {
           cancel() {}
         };
       }),
+    releaseDecoder: () => {
+      state.decoderReleases = (state.decoderReleases || 0) + 1;
+    },
     createWorker: () => worker,
     enabled: () => state.enabled,
     onStatus: (status) => {
@@ -97,6 +100,7 @@ test("fallback initializes model, requests selected audio and commits confirmed 
   assert.equal(h.state.requests[0].selection.audioIndex, 0);
   assert.equal(h.state.requests[0].headers.Authorization, "private");
   assert.equal(h.state.stopped, true);
+  assert.ok(h.state.decoderReleases >= 2);
 });
 test("incompatible model reports unavailable before requesting media", async () => {
   const h = harness({ workerError: true });

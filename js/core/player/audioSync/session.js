@@ -3,6 +3,7 @@ import { dialogueCues } from "./timeline.js";
 export class AudioSubtitleSyncSession {
   constructor({
     requestSample,
+    releaseDecoder = () => {},
     createWorker,
     enabled,
     onStatus,
@@ -19,6 +20,7 @@ export class AudioSubtitleSyncSession {
   }) {
     Object.assign(this, {
       requestSample,
+      releaseDecoder,
       createWorker,
       enabled,
       onStatus,
@@ -44,6 +46,7 @@ export class AudioSubtitleSyncSession {
     this.sleepResolve = null;
     this.pending?.cancel();
     this.pending = null;
+    this.releaseDecoder();
     this.worker?.terminate();
     this.worker = null;
     if (this.waiter) {

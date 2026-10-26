@@ -97,7 +97,7 @@ function context(base) {
   };
 }
 const root = new URL("../services/webos/runtime/dts/", import.meta.url);
-async function decode(sample) {
+async function decode(sample, forceLegacy = true) {
   return new Promise((resolve, reject) => {
     const env = {
       console,
@@ -127,17 +127,23 @@ async function decode(sample) {
     env.self = env;
     env.globalThis = env;
     const ctx = vm.createContext(env);
-    env.importScripts = () => {
-      vm.runInContext(fs.readFileSync(new URL("ffmpeg-core.js", root), "utf8"), ctx);
-      const original = env.createFFmpegCore;
-      env.createFFmpegCore = (options) =>
-        original({ ...options, wasmBinary: fs.readFileSync(new URL("ffmpeg-core.wasm", root)) });
+    env.importScripts = (url) => {
+      const prefix = url.includes("/simd/") ? "simd/" : "";
+      vm.runInContext(fs.readFileSync(new URL(prefix + "ffmpeg-core.js", root), "utf8"), ctx);
+      const factory = prefix ? "createAudioDecoder" : "createFFmpegCore";
+      const original = env[factory];
+      env[factory] = (options) =>
+        original({
+          ...options,
+          wasmBinary: fs.readFileSync(new URL(prefix + "ffmpeg-core.wasm", root))
+        });
     };
     vm.runInContext(fs.readFileSync(new URL("sample-worker.js", root), "utf8"), ctx);
     const bytes = Uint8Array.from(sample.input);
     Promise.resolve(
       env.onmessage({
         data: {
+          forceLegacy,
           input: bytes.buffer,
           format: sample.format,
           durationSeconds: Math.min(30, (sample.endMs - sample.startMs) / 1000),
@@ -172,6 +178,10 @@ for (const [codec, format, container] of [
       assert.ok(sample.startMs <= 1000);
       assert.ok(sample.startMs > 500);
       assert.ok(sample.endMs >= 3000);
+      const fast = await decode(sample, false);
+      assert.equal(fast.error, undefined);
+      assert.equal(fast.variant, "simd", `${format} ${container} fell back`);
+      assert.ok(fast.durationSeconds >= 2 && fast.durationSeconds < 3);
       const result = await decode(sample);
       assert.equal(result.error, undefined);
       assert.equal(result.sampleRate, 16000);
@@ -240,6 +250,9 @@ for (const [codec, format, channels] of [
       assert.equal(sample.partial, true);
       assert.ok(sample.input.length <= 4 * 1024 * 1024);
       assert.ok(sample.endMs >= 3000 && sample.endMs < 29000);
+      const fast = await decode(sample, false);
+      assert.equal(fast.variant, "simd", `${format} long window fell back: ${fast.error}`);
+      assert.ok(fast.durationSeconds >= 2);
       const pcm = await decode(sample);
       assert.equal(pcm.error, undefined);
       assert.ok(pcm.durationSeconds >= 2);
@@ -352,4 +365,39 @@ test("Tizen HTTP route creates, consumes once and cancels bounded sample request
       }
     );
   });
+});
+
+test("Tizen serves both real decoder variants and rejects unlisted asset paths", async () => {
+  service.configureAssets(root.pathname);
+  try {
+    await withServer(
+      (req, res) => {
+        if (!service.handle(req, res)) res.writeHead(404).end();
+      },
+      async (base) => {
+        for (const variant of ["", "simd/"]) {
+          for (const suffix of ["js", "wasm"]) {
+            const response = await fetch(
+              base + "/audio-transcode/assets/" + variant + "ffmpeg-core." + suffix
+            );
+            assert.equal(response.status, 200);
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            assert.ok(bytes.length > 10000);
+            if (suffix === "wasm") assert.equal(WebAssembly.validate(bytes), true);
+          }
+        }
+        assert.equal((await fetch(base + "/audio-transcode/assets/simd/unknown.js")).status, 404);
+        assert.equal(
+          (
+            await fetch(base + "/audio-transcode/assets/simd/ffmpeg-core.wasm", {
+              headers: { Origin: "https://unrelated.test" }
+            })
+          ).status,
+          403
+        );
+      }
+    );
+  } finally {
+    service.configureAssets(null);
+  }
 });

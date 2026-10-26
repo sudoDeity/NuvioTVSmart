@@ -85,7 +85,7 @@ async function create(options) {
 function handle(req, res) {
   const pathname = String(req.url || "").split("?")[0];
   const asset = pathname.match(
-    /^\/audio-transcode\/assets\/(ffmpeg-core\.js|ffmpeg-core\.wasm|sample-worker\.js)$/
+    /^\/audio-transcode\/assets\/((?:simd\/)?ffmpeg-core\.(?:js|wasm)|sample-worker\.js)$/
   );
   if (
     !pathname.startsWith("/audio-samples/") &&

@@ -1,14 +1,14 @@
 import { Platform } from "../../platform/index.js";
 import { requestWebOsCompanionService } from "../../platform/webos/webosCompanionService.js";
 import { TizenEngineFsService } from "../../platform/tizen/tizenEngineFsService.js";
+import { createAudioDecodeRequest } from "../../platform/audioSampleDecoder.js";
 const localBase = (value) => /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/.test(value);
 export function createAudioSampleRequest(options) {
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   let cancelled = false,
     launched = false,
     base = "",
-    worker = null,
-    rejectDecode = null;
+    decodeRequest = null;
   let rejectCancellation;
   const cancellation = new Promise((_, reject) => {
     rejectCancellation = reject;
@@ -88,39 +88,13 @@ export function createAudioSampleRequest(options) {
     const input = await response.arrayBuffer();
     if (cancelled) throw abortError();
     if (input.byteLength !== metadata.byteLength) throw Error("Truncated audio sample");
-    const decoded = await new Promise((resolve, reject) => {
-      rejectDecode = reject;
-      const durationSeconds = Math.min(30, (metadata.endMs - metadata.startMs) / 1000);
-      const url = URL.createObjectURL(
-        new Blob(
-          [`importScripts(${JSON.stringify(base + "/audio-transcode/assets/sample-worker.js")});`],
-          { type: "application/javascript" }
-        )
-      );
-      try {
-        worker = new Worker(url);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-      worker.onerror = () => reject(Error("Audio decoder failed"));
-      worker.onmessage = ({ data }) => {
-        if (
-          data?.error ||
-          !(data?.pcm instanceof ArrayBuffer) ||
-          !data.pcm.byteLength ||
-          data.pcm.byteLength % 2 ||
-          data.pcm.byteLength > 960000 ||
-          data.sampleRate !== 16000 ||
-          data.channels !== 1 ||
-          data.sampleFormat !== "s16le" ||
-          data.durationSeconds !== data.pcm.byteLength / 32000 ||
-          data.durationSeconds > durationSeconds + 0.001
-        )
-          reject(Error("Invalid decoded audio"));
-        else resolve(data);
-      };
-      worker.postMessage({ input, format: metadata.format, durationSeconds, base }, [input]);
+    decodeRequest = createAudioDecodeRequest({
+      base,
+      input,
+      format: metadata.format,
+      durationSeconds: Math.min(30, (metadata.endMs - metadata.startMs) / 1000)
     });
+    const decoded = await decodeRequest.promise;
     if (cancelled) throw abortError();
     return {
       ...decoded,
@@ -134,16 +108,14 @@ export function createAudioSampleRequest(options) {
     if (cancelled) return;
     cancelled = true;
     controller?.abort();
-    worker?.terminate();
-    rejectDecode?.(abortError());
+    decodeRequest?.cancel();
     rejectCancellation(abortError());
     cancelRemote();
   }
   return {
     promise: Promise.race([promise, cancellation]).finally(() => {
       clearTimeout(timeout);
-      worker?.terminate();
-      rejectDecode = null;
+      decodeRequest = null;
     }),
     cancel
   };

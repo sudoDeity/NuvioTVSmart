@@ -68,7 +68,19 @@ npm run sync:silero -- /path/to/silero-rust --detector-bias-ms 100
 
 webOS registers `audioSampleCreate`/`audioSampleCancel` on its existing companion service. Tizen adds equivalent local HTTP routes to the existing subtitle service on port 2715. That service also exposes the same checked-in FFmpeg sample-worker assets. Packaging bundles the shared parser for Node 8 and includes its dependencies in the Tizen WGT.
 
-The decoder returns signed 16-bit little-endian PCM at 16 kHz mono. The analysis adapter divides samples by 32768, aligns to the next 32-ms film-time boundary, resets VAD for each independent window and excludes four warmup chunks. Unobserved frames remain unknown, not silence. Incomplete last chunks are not fabricated or padded into evidence.
+The decoder returns signed 16-bit little-endian PCM at 16 kHz mono. A runtime SIMD
+probe selects a direct FFmpeg codec/parser/resampler module built with SIMD, `-O3`
+and LTO. Its source is `services/shared/audio-sync/decoder/sample-decoder.c`.
+It omits the CLI, virtual filesystem, filter graph, demuxers and encoders.
+Engines without SIMD, failed optimized loads/decodes and fatal worker failures
+use the compatible MVP core with one bounded retry of the original packets.
+The shared client retains one warm 32 MiB decoder between windows and releases
+it on cancellation/session end or after 30 seconds idle. Input/output remain
+bounded at 4 MiB and 30 seconds. AC3/EAC3/DTS request stereo synthesis; TrueHD
+retains the center channel through its 5.1 presentation. See
+`services/webos/runtime/dts/README.md` for the full ABI, limits and build commands.
+
+The analysis adapter divides samples by 32768, aligns to the next 32-ms film-time boundary, resets VAD for each independent window and excludes four warmup chunks. Unobserved frames remain unknown, not silence. Incomplete last chunks are not fabricated or padded into evidence.
 
 The persistent analysis worker owns the VAD instance, compact speech timeline and matchers. A generic FFT computes correlation for the Android candidate frame-rate ratios and shifts within ±60 seconds. Confirmation requires at least 60 seconds of known audio, 20 overlapping dialogue cues, 12 seconds of estimated speech, a distinct peak and agreement between disjoint halves. A consistent local opening can lock even when sampled later scenes belong to a different cut. Scene changes require repeated evidence; the change-point search includes older observations rather than simply putting the change at the latest window boundary.
 

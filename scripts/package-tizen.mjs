@@ -285,10 +285,16 @@ async function stageTizenEngineFsService() {
   await build({
     entryPoints: [path.join(rootDir, "services/shared/audio-sync/audioSamples.cjs")],
     outfile: path.join(stagingDir, "services/shared/audio-sync/audioSamples.cjs"),
-    bundle: true, platform: "node", format: "cjs", target: "node8"
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node8"
   });
-  await cp(path.join(rootDir, "services/webos/runtime/dts"),
-    path.join(stagingDir, tizenEngineFsRuntimeDirRelativePath, "audio-sync"), { recursive: true });
+  await cp(
+    path.join(rootDir, "services/webos/runtime/dts"),
+    path.join(stagingDir, tizenEngineFsRuntimeDirRelativePath, "audio-sync"),
+    { recursive: true }
+  );
 }
 
 async function stageTizenPluginService() {
@@ -618,7 +624,9 @@ function requiredTizenServiceFiles({
           "services/shared/audio-sync/audioSamples.cjs",
           `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/sample-worker.js`,
           `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/ffmpeg-core.js`,
-          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/ffmpeg-core.wasm`
+          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/ffmpeg-core.wasm`,
+          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/simd/ffmpeg-core.js`,
+          `${tizenEngineFsRuntimeDirRelativePath}/audio-sync/simd/ffmpeg-core.wasm`
         ]
       : []),
     ...(requirePluginService

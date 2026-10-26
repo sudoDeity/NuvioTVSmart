@@ -7,6 +7,7 @@ import { AudioSubtitleSyncSession } from "../../../core/player/audioSync/session
 import { audioMappingCache } from "../../../core/player/audioSync/cache.js";
 import { resolveAudioSelection } from "../../../core/player/audioSync/selection.js";
 import { retimeAudioCues, segmentAt, mediaTime } from "../../../core/player/audioSync/tracker.js";
+import { releaseAudioSampleDecoder } from "../../../platform/audioSampleDecoder.js";
 import { createAudioSampleRequest } from "../../../data/repository/audioSampleRepository.js";
 import { ProfileManager } from "../../../core/profile/profileManager.js";
 import { loadAudioCandidates } from "../../../core/player/audioSync/candidates.js";
@@ -302,6 +303,7 @@ export const PlayerAutomaticSubtitleSyncMethods = {
     const candidates = new Map();
     this.audioSubtitleSyncSession = new AudioSubtitleSyncSession({
       requestSample: createAudioSampleRequest,
+      releaseDecoder: releaseAudioSampleDecoder,
       createWorker: () => new Worker("assets/runtime/audio-sync-worker.js"),
       enabled, onStatus: status,
       sampling: PlayerSettingsStore.get().subtitleStyle?.audioSyncSampling || "low",

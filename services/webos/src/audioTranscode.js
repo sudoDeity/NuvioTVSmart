@@ -426,10 +426,13 @@ async function createSession(options) {
 function handle(req, res) {
   const pathname = String(req.url || "").split("?")[0];
   if (
-    /^\/audio-transcode\/assets\/(ffmpeg-core\.js|ffmpeg-core\.wasm|worker\.js|sample-worker\.js)$/.test(pathname)
+    /^\/audio-transcode\/assets\/((?:simd\/)?ffmpeg-core\.(?:js|wasm)|worker\.js|sample-worker\.js)$/.test(
+      pathname
+    )
   ) {
     cors(res);
-    const name = pathname.split("/").pop();
+    res.setHeader("Cache-Control", "no-store");
+    const name = pathname.slice("/audio-transcode/assets/".length);
     res.setHeader(
       "Content-Type",
       name.endsWith(".wasm") ? "application/wasm" : "application/javascript"
